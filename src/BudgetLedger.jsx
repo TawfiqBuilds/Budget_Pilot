@@ -742,7 +742,7 @@ export default function BudgetLedger({ user }) {
                 <div className="section-title">Last 12 months</div>
                 <DualBarChart data={monthlySeries} />
               </div>
-              <div className="card" style={{ marginBottom: 16 }}>
+              {/* <div className="card" style={{ marginBottom: 16 }}>
                 <div className="section-title">By quarter</div>
                 <DualBarChart data={quarterlySeries} />
                 {qTrend && <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, marginBottom: 0, fontFamily: "var(--font-mono)" }}>Combined quarterly avg: {fmt(qTrend.avg)}{qTrend.pct !== null && <span style={{ color: qTrend.pct > 0 ? "var(--clay)" : "var(--olive)" }}> · {qTrend.pct > 0 ? "up" : "down"} {Math.abs(qTrend.pct).toFixed(0)}% vs previous quarter</span>}</p>}
@@ -751,7 +751,7 @@ export default function BudgetLedger({ user }) {
                 <div className="section-title">By year</div>
                 <DualBarChart data={yearlySeries} />
                 {yTrend && <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, marginBottom: 0, fontFamily: "var(--font-mono)" }}>Combined yearly avg/month: {fmt(yTrend.avg / 12)}{yTrend.pct !== null && <span style={{ color: yTrend.pct > 0 ? "var(--clay)" : "var(--olive)" }}> · {yTrend.pct > 0 ? "up" : "down"} {Math.abs(yTrend.pct).toFixed(0)}% vs previous year</span>}</p>}
-              </div>
+              </div> */}
             </>
           )}
         </div>
