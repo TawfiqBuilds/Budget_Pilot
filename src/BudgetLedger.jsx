@@ -199,6 +199,7 @@ export default function BudgetLedger({ user }) {
   const [foodReference, setFoodReference] = useState(DEFAULT_FOOD_REFERENCE);
   const [personalReference, setPersonalReference] = useState(DEFAULT_PERSONAL_REFERENCE);
   const [actuals, setActuals] = useState({});
+  const [notes, setNotes] = useState({});
   const [showFoodRef, setShowFoodRef] = useState(false);
   const [showPersonalRef, setShowPersonalRef] = useState(false);
   const [refName, setRefName] = useState({ food: "", personal: "" });
@@ -212,6 +213,7 @@ export default function BudgetLedger({ user }) {
   const [saveNote, setSaveNote] = useState("");
   const [pieScope, setPieScope] = useState("month");
   const saveTimer = useRef(null);
+  const noteSaveTimers = useRef({});
 
   const realCurrentKey = monthKey(new Date());
   const [selectedMonthKey, setSelectedMonthKey] = useState(realCurrentKey);
@@ -225,6 +227,7 @@ export default function BudgetLedger({ user }) {
       try { const r = await storage.get("food-bucket-reference"); if (r && r.value) setFoodReference(JSON.parse(r.value)); } catch (e) {}
       try { const r2 = await storage.get("personal-bucket-reference"); if (r2 && r2.value) setPersonalReference(JSON.parse(r2.value)); } catch (e) {}
       try { const a = await storage.get("category-actuals"); if (a && a.value) setActuals(JSON.parse(a.value)); } catch (e) {}
+      try { const n = await storage.get("category-notes"); if (n && n.value) setNotes(JSON.parse(n.value)); } catch (e) {}
       setLoaded(true);
     })();
   }, []);
@@ -237,6 +240,7 @@ export default function BudgetLedger({ user }) {
   async function persistFoodRef(next) { setFoodReference(next); try { await storage.set("food-bucket-reference", JSON.stringify(next)); flash("Saved"); } catch (e) { flash("Save failed"); } }
   async function persistPersonalRef(next) { setPersonalReference(next); try { await storage.set("personal-bucket-reference", JSON.stringify(next)); flash("Saved"); } catch (e) { flash("Save failed"); } }
   async function persistActuals(next) { setActuals(next); try { await storage.set("category-actuals", JSON.stringify(next)); flash("Saved"); } catch (e) { flash("Save failed"); } }
+  async function persistNotes(next) { try { await storage.set("category-notes", JSON.stringify(next)); flash("Saved"); } catch (e) { flash("Save failed"); } }
 
   function updateCatAmount(id, val) { const num = val === "" ? 0 : Number(val); if (Number.isNaN(num)) return; persistCategories(categories.map((c) => (c.id === id ? { ...c, amount: num } : c))); }
   function updateCatLabel(id, val) { persistCategories(categories.map((c) => (c.id === id ? { ...c, label: val } : c))); }
@@ -306,6 +310,19 @@ export default function BudgetLedger({ user }) {
     if (num === null || Number.isNaN(num)) delete monthData[catId];
     else monthData[catId] = num;
     persistActuals({ ...actuals, [selectedMonthKey]: monthData });
+  }
+
+  function getNote(catId, key) {
+    return notes[key]?.[catId] ?? "";
+  }
+  function updateNote(catId, val) {
+    const monthData = { ...(notes[selectedMonthKey] || {}) };
+    if (!val) delete monthData[catId];
+    else monthData[catId] = val;
+    const next = { ...notes, [selectedMonthKey]: monthData };
+    setNotes(next); // update UI immediately so typing feels instant
+    clearTimeout(noteSaveTimers.current[catId]);
+    noteSaveTimers.current[catId] = setTimeout(() => persistNotes(next), 600); // debounce the actual save
   }
 
   const selPrevKey = prevMonthKey(selectedMonthKey);
@@ -420,7 +437,9 @@ export default function BudgetLedger({ user }) {
         .save-note { font-family: var(--font-mono); font-size: 11px; color: var(--olive); opacity: ${saveNote ? 1 : 0}; transition: opacity 0.3s; }
         .section-title { font-size: 12px; letter-spacing: 1px; color: var(--ink-soft); text-transform: uppercase; margin: 0 0 10px; }
         .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; }
-        .grid-row { display: grid; grid-template-columns: 1fr 62px 62px 58px 22px; gap: 6px; align-items: center; padding: 6px 0; }
+        .grid-row { display: grid; grid-template-columns: 1fr 62px 62px 58px 100px 22px; gap: 6px; align-items: center; padding: 6px 0; }
+        .note-input { width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--line); font-size: 11px; font-family: var(--font-mono); color: var(--ink); padding: 2px 0; }
+        .note-input:focus { outline: none; border-bottom-color: var(--ink); }
         .grid-head { font-size: 9.5px; letter-spacing: 0.5px; color: var(--ink-soft); text-transform: uppercase; font-family: var(--font-mono); }
         .pill-active { background: var(--ink) !important; color: var(--card) !important; }
       `}</style>
@@ -464,8 +483,9 @@ export default function BudgetLedger({ user }) {
           <div className="grid-row" style={{ borderBottom: "1px solid var(--line)", paddingBottom: 6, marginBottom: 2 }}>
             <span className="grid-head">Category</span>
             <span className="grid-head" style={{ textAlign: "right" }}>Planned</span>
-            <span className="grid-head" style={{ textAlign: "right" }}>Actual</span>
-            <span className="grid-head" style={{ textAlign: "right" }}>vs prev</span>
+            <span className="grid-head" style={{ textAlign: "center" }}>Actual</span>
+            <span className="grid-head" style={{ textAlign: "right" }}>Prev Month</span>
+            <span className="grid-head" style={{ textAlign: "center" }}>Notes</span>
             <span />
           </div>
 
@@ -485,10 +505,33 @@ export default function BudgetLedger({ user }) {
                   {isAuto ? (
                     <input type="number" value={curr ?? 0} disabled style={{ textAlign: "right" }} />
                   ) : (
-                    <input type="number" placeholder="—" value={curr ?? ""} onChange={(e) => updateActual(c.id, e.target.value)} style={{ textAlign: "right" }} />
+                    <input type="number" placeholder="—" value={curr ?? ""} onChange={(e) => updateActual(c.id, e.target.value)} style={{
+  textAlign: curr === null ? "center" : "right",
+}} />
                   )}
                 </div>
-                <span style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 11.5, color: deltaColor }}>{delta === null ? "—" : fmtDelta(delta)}</span>
+                <span
+  style={{
+    textAlign: delta === null ? "center" : "right",
+    fontFamily: "var(--font-mono)",
+    fontSize: 11.5,
+    color: deltaColor,
+    display: "block",
+  }}
+>
+  {delta === null ? "—" : fmtDelta(delta)}
+</span>
+                <input
+  type="text"
+  className="note-input"
+  placeholder="—"
+  value={getNote(c.id, selectedMonthKey)}
+  onChange={(e) => updateNote(c.id, e.target.value)}
+  title={getNote(c.id, selectedMonthKey)}
+  style={{
+    textAlign: getNote(c.id, selectedMonthKey) ? "left" : "center",
+  }}
+/>
                 {isAuto ? <span /> : <button className="del-btn" onClick={() => removeCategory(c.id)} aria-label="Remove category"><Trash2 size={12} /></button>}
               </div>
             );
